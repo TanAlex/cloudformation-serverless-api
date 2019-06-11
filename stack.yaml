@@ -5,22 +5,22 @@ Description: API Gateway, Lambda, and Dynamo.
 
 Resources:
   # Policy required for all lambda function roles.
-  BaseLambdaExecutionPolicy:
-    Type: AWS::IAM::ManagedPolicy
-    Properties:
-      Description: Base permissions needed by all lambda functions.
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Action:
-              - logs:CreateLogGroup
-              - logs:CreateLogStream
-              - logs:PutLogEvents
-              - ec2:CreateNetworkInterface
-              - ec2:DescribeNetworkInterfaces
-              - ec2:DeleteNetworkInterface
-            Resource: "*"
+  # BaseLambdaExecutionPolicy:
+  #   Type: AWS::IAM::ManagedPolicy
+  #   Properties:
+  #     Description: Base permissions needed by all lambda functions.
+  #     PolicyDocument:
+  #       Version: '2012-10-17'
+  #       Statement:
+  #         - Effect: Allow
+  #           Action:
+  #             - logs:CreateLogGroup
+  #             - logs:CreateLogStream
+  #             - logs:PutLogEvents
+  #             - ec2:CreateNetworkInterface
+  #             - ec2:DescribeNetworkInterfaces
+  #             - ec2:DeleteNetworkInterface
+  #           Resource: "*"
 
   HelloTable:
     Type: AWS::DynamoDB::Table
@@ -29,10 +29,10 @@ Resources:
         ReadCapacityUnits: 5
         WriteCapacityUnits: 5
       AttributeDefinitions:
-        - AttributeName: user_id
+        - AttributeName: id
           AttributeType: S
       KeySchema:
-        - AttributeName: user_id
+        - AttributeName: id
           KeyType: HASH
 
   # FIXME How to hook up custom domain?
@@ -56,7 +56,17 @@ Resources:
         produces:
           - application/json
         paths:
-          /users/{userId}/hello:
+          /users/id:
+            get:
+              description: "Get all users"
+              x-amazon-apigateway-integration:
+                uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${HelloLambda.Arn}/invocations"
+                credentials: !GetAtt MyApiGatewayRole.Arn
+                passthroughBehavior: when_no_match
+                httpMethod: POST
+                type: aws_proxy
+              operationId: getUsers
+          /users/id/{id}:
             get:
               description: TBD
               x-amazon-apigateway-integration:
@@ -67,12 +77,12 @@ Resources:
                 type: aws_proxy
               operationId: getHello
               parameters:
-                - name: userId
+                - name: id
                   in: path
                   description: TBD
                   required: true
                   type: string
-                  format: uuid
+                  #format: uuid
             post:
               description: TBD
               x-amazon-apigateway-integration:
@@ -83,12 +93,12 @@ Resources:
                 type: aws_proxy
               operationId: postHello
               parameters:
-                - name: userId
+                - name: id
                   in: path
                   description: TBD
                   required: true
                   type: string
-                  format: uuid
+                  #format: uuid
                 - name: body
                   in: body
                   description: TBD
@@ -96,10 +106,10 @@ Resources:
                   schema:
                     type: object
                     required:
-                    - email
+                    - details
                     properties:
-                      email:
-                        type: string
+                      details:
+                        type: object
 
   MyApiGatewayDeployment:
     Type: AWS::ApiGateway::Deployment
@@ -133,13 +143,20 @@ Resources:
     Properties:
       Role: !GetAtt HelloLambdaRole.Arn  # TODO
       Handler: index.handleHttpRequest
-      Runtime: nodejs6.10
+      Runtime: nodejs8.10
       Environment:
         Variables:
           HELLO_DB: !Sub "arn:aws:dynamodb:${AWS::Region}:*:table/${HelloTable}"
       Code:
         ZipFile: |
           exports.handlers = function(event, context) {}
+
+  LambdaFunctionLogGroup:
+    Type: "AWS::Logs::LogGroup"
+    DependsOn: "HelloLambda"
+    Properties: 
+      RetentionInDays: 30
+      LogGroupName: !Join ["", ["/aws/lambda/", !Ref HelloLambda]]
 
   HelloLambdaRole:  # -> AppAPIRole
     Type: AWS::IAM::Role
@@ -151,22 +168,34 @@ Resources:
             Principal:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - !Ref BaseLambdaExecutionPolicy
+      # ManagedPolicyArns:
+      #   - !Ref BaseLambdaExecutionPolicy
+      #   - "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess"
       Policies:
-        - PolicyName: getHello
+        - PolicyName: alowHello
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                  - "ec2:CreateNetworkInterface"
+                  - "ec2:DescribeNetworkInterfaces"
+                  - "ec2:DeleteNetworkInterface"
+                Resource: "*"
               - Effect: Allow
                 Action:
                   - dynamodb:GetItem
+                  - dynamodb:Scan
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
                 Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:*:table/${HelloTable}"
-        - PolicyName: putHello
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
               - Effect: Allow
                 Action:
-                  - dynamodb:PutItem
-                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:*:table/${HelloTable}"
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:*:table/${HelloTable}/index/*"
