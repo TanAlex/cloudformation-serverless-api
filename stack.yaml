@@ -46,7 +46,7 @@ Resources:
         swagger: 2.0
         info:
           description: |
-            The account API.
+            The users API.
           version: 1.0
         basePath: /
         schemes:
@@ -116,6 +116,12 @@ Resources:
     Properties:
       RestApiId: !Ref MyApiGateway
       StageName: prod
+
+  MyApiGatewayDeploymentDev:
+    Type: AWS::ApiGateway::Deployment
+    Properties:
+      RestApiId: !Ref MyApiGateway
+      StageName: dev
 
   MyApiGatewayRole:
     Type: AWS::IAM::Role

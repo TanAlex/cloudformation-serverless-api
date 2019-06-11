@@ -79,3 +79,56 @@ Use `/user/id/1` and POST test data like
 Then test `/usr/id/1`, you should see record comes back  
 test `/usr/id` will show a JSON result which is the list of all the records
 
+## Commandline CLI process
+
+List Statcks
+```
+aws cloudformation list-stacks --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE
+```
+
+Create Stacks
+```
+aws cloudformation create-stack --stack-name dynamodb-lambda --template-body file://./stack.yaml --capabilities CAPABILITY_IAM
+```
+
+List resources
+```
+aws cloudformation list-stack-resources --stack-name dynamodb-lambda
+```
+
+(optional) Get the template if you made change manually
+```
+aws cloudformation get-template --stack-name dynamodb-lambda
+```
+
+(optional) Update stack if you have changed stack.yml
+```
+aws cloudformation update-stack --stack-name dynamodb-lambda --template-body file://stack.yaml --capabilities CAPABILITY_IAM
+```
+
+List lambda function
+```
+$ aws lambda list-functions --max-items 10
+{
+    "Functions": [
+        {
+            "FunctionName": "dynamodb-lambda-HelloLambda-A5A7Y7VDYG5X",
+            ...
+```
+
+Update function code
+```
+zip function.zip ./index.js
+
+aws lambda update-function-code --function-name "dynamodb-lambda-HelloLambda-A5A7Y7VDYG5X" --zip-file fileb://function.zip
+```
+
+
+Test
+
+1. You can test using API Gateway showed above
+2. Then API Gateway to find out the URL for the lambda for given stage, it's in the "Stage" sidebar menu<br>
+Our example is :  Invoke URL: https://m94n9z5sob.execute-api.us-west-2.amazonaws.com/prod
+
+
+Refer to [multiple stage management](./multiple-stage-version.md) to manage `dev` and `prod` stage in ApiGateway
